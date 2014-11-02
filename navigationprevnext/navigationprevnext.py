@@ -48,14 +48,20 @@ def insert_top(articles):
             top_url = article.url
             category_name = article.category.name
             next_entry = compose_entry_with_category(article.next_entry, category_name)
-            current_article = articles.get(article.next_entry, None)
+            current_article = articles.get(next_entry, None)
+            entries_already_seen = [ next_entry ]   # to avoid loops
             while current_article != None:
                 current_article.top_url = top_url
                 current_article.top_title = "inici"
                 if hasattr(current_article, 'next_entry'):
                     category_name = current_article.category.name
                     next_entry = compose_entry_with_category(current_article.next_entry, category_name)
-                    current_article = articles.get(next_entry, None)
+                    if next_entry in entries_already_seen:
+                        print "WARNING: circular navigation found for %s"%next_entry
+                        current_article = None
+                    else:
+                        current_article = articles.get(next_entry, None)
+                        entries_already_seen.append(next_entry)
                 else:
                     current_article = None
 
