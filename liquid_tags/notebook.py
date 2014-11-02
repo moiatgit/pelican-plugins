@@ -46,6 +46,8 @@ still be some conflicts.
 """
 import re
 import os
+from functools import partial
+
 from .mdx_liquid_tags import LiquidTags
 
 from distutils.version import LooseVersion
@@ -129,9 +131,17 @@ div.text_cell_render {
 }
 
 img.anim_icon{padding:0; border:0; vertical-align:middle; -webkit-box-shadow:none; -box-shadow:none}
+
+div.collapseheader {
+    width=100%;
+    background-color:#d3d3d3;
+    padding: 2px;
+    cursor: pointer;
+    font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;
+}
 </style>
 
-<script src="https://c328740.ssl.cf1.rackcdn.com/mathjax/latest/MathJax.js?config=TeX-AMS_HTML" type="text/javascript"></script>
+<script src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS_HTML" type="text/javascript"></script>
 <script type="text/javascript">
 init_mathjax = function() {
     if (window.MathJax) {
@@ -151,6 +161,23 @@ init_mathjax = function() {
 }
 init_mathjax();
 </script>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
+
+<script type="text/javascript">
+jQuery(document).ready(function($) {
+    $("div.collapseheader").click(function () {
+    $header = $(this).children("span").first();
+    $codearea = $(this).children(".input_area");
+    console.log($(this).children());
+    $codearea.slideToggle(500, function () {
+        $header.text(function () {
+            return $codearea.is(":visible") ? "Collapse Code" : "Expand Code";
+        });
+    });
+});
+});
+</script>
+
 """
 
 CSS_WRAPPER = """
@@ -190,36 +217,6 @@ class SubCell(Preprocessor):
     call = preprocess # IPython < 2.0
 
 
-#----------------------------------------------------------------------
-# Customize the html template:
-#  This changes the <pre> tags in basic_html.tpl to <pre class="ipynb"
-pelican_loader = DictLoader({'pelicanhtml.tpl':
-"""
-{%- extends 'basichtml.tpl' -%}
-
-{% block stream_stdout -%}
-<div class="box-flex1 output_subarea output_stream output_stdout">
-<pre class="ipynb">{{output.text |ansi2html}}</pre>
-</div>
-{%- endblock stream_stdout %}
-
-{% block stream_stderr -%}
-<div class="box-flex1 output_subarea output_stream output_stderr">
-<pre class="ipynb">{{output.text |ansi2html}}</pre>
-</div>
-{%- endblock stream_stderr %}
-
-{% block pyerr -%}
-<div class="box-flex1 output_subarea output_pyerr">
-<pre class="ipynb">{{super()}}</pre>
-</div>
-{%- endblock pyerr %}
-
-{%- block data_text %}
-<pre class="ipynb">{{output.text | ansi2html}}</pre>
-{%- endblock -%}
-"""})
-
 
 #----------------------------------------------------------------------
 # Custom highlighter:
@@ -235,8 +232,8 @@ def custom_highlighter(source, language='ipython', metadata=None):
 #----------------------------------------------------------------------
 # Below is the pelican plugin code.
 #
-SYNTAX = "{% notebook /path/to/notebook.ipynb [ cells[start:end] ] %}"
-FORMAT = re.compile(r"""^(\s+)?(?P<src>\S+)(\s+)?((cells\[)(?P<start>-?[0-9]*):(?P<end>-?[0-9]*)(\]))?(\s+)?$""")
+SYNTAX = "{% notebook /path/to/notebook.ipynb [ cells[start:end] ] [ language[language] ] %}"
+FORMAT = re.compile(r"""^(\s+)?(?P<src>\S+)(\s+)?((cells\[)(?P<start>-?[0-9]*):(?P<end>-?[0-9]*)(\]))?(\s+)?((language\[)(?P<language>-?[a-z0-9\+\-]*)(\]))?(\s+)?$""")
 
 
 @LiquidTags.register('notebook')
@@ -247,6 +244,7 @@ def notebook(preprocessor, tag, markup):
         src = argdict['src']
         start = argdict['start']
         end = argdict['end']
+        language = argdict['language']
     else:
         raise ValueError("Error processing input, "
                          "expected syntax: {0}".format(SYNTAX))
@@ -261,6 +259,8 @@ def notebook(preprocessor, tag, markup):
     else:
         end = None
 
+    language_applied_highlighter = partial(custom_highlighter, language=language)
+
     settings = preprocessor.configs.config['settings']
     nb_dir =  settings.get('NOTEBOOK_DIR', 'notebooks')
     nb_path = os.path.join('content', nb_dir, src)
@@ -273,16 +273,23 @@ def notebook(preprocessor, tag, markup):
                     {'enabled':True, 'highlight_class':'.highlight-ipynb'},
                 'SubCell':
                     {'enabled':True, 'start':start, 'end':end}})
-    
+
+    template_file = 'basic'
+    if LooseVersion(IPython.__version__) >= '2.0':
+        if os.path.exists('pelicanhtml_2.tpl'):
+            template_file = 'pelicanhtml_2'
+    else:
+        if os.path.exists('pelicanhtml_1.tpl'):
+            template_file = 'pelicanhtml_1'
+
     if LooseVersion(IPython.__version__) >= '2.0':
         subcell_kwarg = dict(preprocessors=[SubCell])
     else:
         subcell_kwarg = dict(transformers=[SubCell])
     
     exporter = HTMLExporter(config=c,
-                            template_file='basic',
-                            filters={'highlight2html': custom_highlighter},
-                            extra_loaders=[pelican_loader],
+                            template_file=template_file,
+                            filters={'highlight2html': language_applied_highlighter},
                             **subcell_kwarg)
 
     # read and parse the notebook

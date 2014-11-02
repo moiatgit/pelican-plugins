@@ -25,6 +25,17 @@ To insert a sized and labeled image in your document, enable the
 
     {% img [class name(s)] path/to/image [width [height]] [title text | "title text" ["alt text"]] %}
 
+### Base64 Image (inline image) tag
+
+There is one more tag for image: ``b64img``. It is based on ``img`` tag, but instead of inserting link on image it acutally reads image and inserts it as base64 text into ``<img src=`` attribute.
+
+To use it:
+
+1. Enable ``liquid_tags.b64img``
+1. Insert tag as you'd insert image one: ``{% b64img [class name(s)] path/to/image [width [height]] [title text | "title text" ["alt text"]] %}``
+
+Images are read on compilation phase so you can use any local path (just be sure that image will remain there on next compilation)
+
 ## Youtube Tag
 To insert youtube video into a post, enable the
 ``liquid_tags.youtube`` plugin, and add to your document:
@@ -61,12 +72,20 @@ To include code from a file in your document with a link to the original
 file, enable the ``liquid_tags.include_code`` plugin, and add to your
 document:
 
-    {% include_code myscript.py [Title text] %}
+    {% include_code /path/to/code.py [lang:python] [lines:X-Y] [:hidefilename:] [title] %}
+
+All arguments are optional but their order must be kept. `:hidefilename:` is
+only allowed if a title is also given.
+
+    {% include_code /path/to/code.py lines:1-10 :hidefilename: Test Example %}
+
+This example will show the first 10 lines of the file while hiding the actual
+filename.
 
 The script must be in the ``code`` subdirectory of your content folder:
 this default location can be changed by specifying
 
-   CODE_DIR = 'code'
+    CODE_DIR = 'code'
 
 within your configuration file. Additionally, in order for the resulting
 hyperlink to work, this directory must be listed under the STATIC_PATHS
@@ -89,7 +108,7 @@ config file:
 Because the conversion and rendering of notebooks is rather involved, there
 are a few extra steps required for this plugin:
 
-- First, you will need to install IPython >= 1.0 [1]_
+- First, you will need to install IPython >= 1.0 [[1](#1)]
 
 - After typing "make html" when using the notebook tag, a file called
   ``_nb_header.html`` will be produced in the main directory.  The content
@@ -107,4 +126,50 @@ are a few extra steps required for this plugin:
 
   this will insert the proper css formatting into your document.
 
-[1] http://ipython.org/
+### Optional Arguments for Notebook Tags
+
+The notebook tag also has two optional arguments: ``cells`` and ``language``.
+
+- You can specify a slice of cells to include:
+
+  ``{% notebook filename.ipynb cells[2:8] %}``
+
+- You can also specify the name of a language which Pygments should use for
+  highlighting code cells. A list of the short names for languages that Pygments
+  will highlight can be found [here](http://www.pygments.org/docs/lexers/).
+
+  ``{% notebook filename.ipynb language[julia] %}``
+
+  This may be helpful for those using [IJulia](https://github.com/JuliaLang/IJulia.jl)
+  or notebooks in any other language, especially as the IPython project [broadens its
+  scope](https://github.com/ipython/ipython/wiki/Roadmap:-IPython) of [language
+  compatibility](http://jupyter.org/). By default, the language for highlighting
+  will be ``ipython``.
+
+- These options can be used separately, together, or not at all. However,
+  if both tags are used then ``cells`` must come before ``language``:
+
+  ``{% notebook filename.ipynb cells[2:8] language[julia] %}``
+
+### Collapsible Code in IPython Notebooks
+
+The plugin also enables collapsible code input boxes. For this to work
+you first need to copy the file ``pelicanhtml_1.tpl`` (for IPython
+1.x) ``pelicanhtml_2.tpl`` (for IPython 2.x) to the top level of your
+Pelican blog. Notebook input cells containing the comment line ``#
+<!-- collapse=True -->`` will be collapsed when the html page is
+loaded and can be expanded by clicking on them. Cells containing the
+comment line ``# <!-- collapse=False -->`` will be open on load but
+can be collapsed by clicking on their header. Cells without collapse
+comments are rendered as standard code input cells.
+
+### Run unitests
+
+The file `test_notebook.py` contains tests that can be run using [nose](https://nose.readthedocs.org/en/latest/index.html)
+
+```
+cd path/to/liquid_tags
+nosetests
+```
+
+[<a name="1">1</a>] http://ipython.org/
